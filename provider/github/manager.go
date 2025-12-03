@@ -12,7 +12,7 @@ import (
 )
 
 type ConfigManager struct {
-	client github.Client
+	client *github.Client
 	option *Option
 }
 
@@ -32,7 +32,7 @@ func NewGithubConfigManager(option *Option) (*ConfigManager, error) {
 		option.PollingInterval = 60 * time.Second
 	}
 
-	return &ConfigManager{option: option, client: *client}, nil
+	return &ConfigManager{option: option, client: client}, nil
 }
 
 func (cm *ConfigManager) Get(dataId string) ([]byte, error) {

@@ -5,8 +5,8 @@ go 1.25.4
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
 	github.com/google/go-github/v79 v79.0.0
+	github.com/sagikazarmark/crypt v0.31.0
 	github.com/spf13/viper v1.21.0
-	github.com/spf13/viper/remote v1.21.0
 )
 
 require (
@@ -56,7 +56,6 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/sagikazarmark/crypt v0.31.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect

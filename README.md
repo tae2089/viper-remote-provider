@@ -63,10 +63,13 @@ func main() {
     }
 
     // 2. Register the provider with Viper
-    viper_remote_provider.SetOptions(option)
+    err := viper_remote_provider.RegisterGithubProvider(option)
+    if err != nil {
+        log.Fatalf("Error registering GitHub provider: %v", err)
+    }
 
     // 3. Add remote provider
-    err := viper.AddRemoteProvider("github", "github.com", "config.yaml")
+    err = viper.AddRemoteProvider("github", "github.com", "config.yaml")
     if err != nil {
         log.Fatalf("Error adding remote provider: %v", err)
     }
@@ -117,7 +120,10 @@ option := &github.Option{
     PollingInterval: 30 * time.Second,
 }
 
-viper_remote_provider.SetOptions(option)
+err := viper_remote_provider.RegisterGithubProvider(option)
+if err != nil {
+    log.Fatalf("Error registering GitHub provider: %v", err)
+}
 ```
 
 ## API Reference
@@ -138,22 +144,28 @@ type Option struct {
 
 ### Functions
 
-#### `SetOptions(option *github.Option)`
+#### `RegisterGithubProvider(option *github.Option) error`
 
 Initializes and registers the GitHub provider with Viper.
 
 **Parameters:**
 - `option`: GitHub provider configuration
 
+**Returns:**
+- `error`: Returns an error if registration fails (e.g., invalid options)
+
 **Example:**
 ```go
-viper_remote_provider.SetOptions(&github.Option{
+err := viper_remote_provider.RegisterGithubProvider(&github.Option{
     Owner:      "tae2089",
     Repository: "config",
     Branch:     "main",
     Path:       "config.yaml",
     Token:      os.Getenv("GITHUB_TOKEN"),
 })
+if err != nil {
+    log.Fatalf("Error: %v", err)
+}
 ```
 
 ## Configuration File Format
@@ -172,7 +184,7 @@ Make sure to call `viper.SetConfigType()` with the appropriate format.
 
 ### Initial Configuration Load
 
-1. `SetOptions()` creates a GitHub `ConfigManager` and registers it with Viper
+1. `RegisterGithubProvider()` creates a GitHub `ConfigManager` and registers it with Viper
 2. `viper.AddRemoteProvider()` sets up the remote provider endpoint
 3. `viper.ReadRemoteConfig()` fetches the initial configuration from GitHub
 4. The content is decoded and merged into Viper's configuration

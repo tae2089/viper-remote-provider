@@ -30,13 +30,19 @@ func main() {
 		PollingInterval: 10 * time.Second, // 10초마다 변경사항 체크
 	}
 
-	// 2. 옵션 등록
-	// 이 함수를 호출해야 GitHub Provider가 올바르게 초기화됩니다.
-	viper_remote_provider.SetOptions(option)
+	// 2. GitHub Provider 등록
+	// 새로운 방식: RegisterGithubProvider 사용 (권장)
+	err := viper_remote_provider.RegisterGithubProvider(option)
+	if err != nil {
+		log.Fatalf("Error registering github provider: %v", err)
+	}
+
+	// 또는 하위 호환성을 위한 기존 방식도 여전히 동작합니다:
+	// viper_remote_provider.SetOptions(option)
 
 	// 3. Viper에 Remote Provider 추가
 	// endpoint는 "github.com"으로 설정하고, path는 리포지토리 내 파일 경로와 일치시킵니다.
-	err := viper.AddRemoteProvider("github", "github.com", "config.yaml")
+	err = viper.AddRemoteProvider("github", "github.com", "config.yaml")
 	if err != nil {
 		log.Fatalf("Error adding remote provider: %v", err)
 	}

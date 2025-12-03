@@ -2,38 +2,49 @@ package viper_remote_provider
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	crypt "github.com/sagikazarmark/crypt/config"
 	"github.com/spf13/viper"
+	"github.com/tae2089/viper-remote-provider/provider"
 	"github.com/tae2089/viper-remote-provider/provider/github"
 )
 
-type remoteConfigProvider struct {
-	GithubConfigManager *github.ConfigManager
-}
+type remoteConfigProvider struct{}
 
-func SetOptions(option *github.Option) {
-	m, _ := github.NewGithubConfigManager(option)
-	viper.SupportedRemoteProviders = append(viper.SupportedRemoteProviders, "github")
-	viper.RemoteConfig = &remoteConfigProvider{GithubConfigManager: m}
+// RegisterProvider는 새 provider를 등록하고 viper에 추가
+func RegisterProvider(
+	providerType provider.Type,
+	options provider.Options,
+	factory provider.Factory,
+) error {
+	if err := provider.Register(providerType, options, factory); err != nil {
+		return err
+	}
+
+	// viper에 provider 추가
+	providerName := string(providerType)
+	if !contains(viper.SupportedRemoteProviders, providerName) {
+		viper.SupportedRemoteProviders = append(viper.SupportedRemoteProviders, providerName)
+	}
+
+	// 첫 provider 등록 시 RemoteConfig 설정
+	if viper.RemoteConfig == nil {
+		viper.RemoteConfig = &remoteConfigProvider{}
+	}
+
+	return nil
 }
 
 func (rc remoteConfigProvider) Get(rp viper.RemoteProvider) (io.Reader, error) {
-	var cm viperConfigManager
-	var err error
-	switch rp.Provider() {
-	case "github":
-		cm = rc.GithubConfigManager
-	default:
-		cm, err = getConfigManager(rp)
-	}
-
+	cm, err := rc.getConfigManager(rp)
 	if err != nil {
 		return nil, err
 	}
+
 	b, err := cm.Get(rp.Path())
 	if err != nil {
 		return nil, err
@@ -42,17 +53,11 @@ func (rc remoteConfigProvider) Get(rp viper.RemoteProvider) (io.Reader, error) {
 }
 
 func (rc remoteConfigProvider) Watch(rp viper.RemoteProvider) (io.Reader, error) {
-	var cm viperConfigManager
-	var err error
-	switch rp.Provider() {
-	case "github":
-		cm = rc.GithubConfigManager
-	default:
-		cm, err = getConfigManager(rp)
-	}
+	cm, err := rc.getConfigManager(rp)
 	if err != nil {
 		return nil, err
 	}
+
 	b, err := cm.Get(rp.Path())
 	if err != nil {
 		return nil, err
@@ -61,17 +66,20 @@ func (rc remoteConfigProvider) Watch(rp viper.RemoteProvider) (io.Reader, error)
 }
 
 func (rc remoteConfigProvider) WatchChannel(rp viper.RemoteProvider) (<-chan *viper.RemoteResponse, chan bool) {
-	var cm viperConfigManager
-	switch rp.Provider() {
-	case "github":
-		cm = rc.GithubConfigManager
-	default:
-		cm, _ = getConfigManager(rp)
+	cm, err := rc.getConfigManager(rp)
+	if err != nil {
+		// 에러 처리를 위한 채널 생성
+		errCh := make(chan *viper.RemoteResponse, 1)
+		errCh <- &viper.RemoteResponse{Error: err}
+		close(errCh)
+		return errCh, make(chan bool)
 	}
+
 	quit := make(chan bool)
 	quitwc := make(chan bool)
 	viperResponsCh := make(chan *viper.RemoteResponse)
 	cryptoResponseCh := cm.Watch(rp.Path(), quit)
+
 	// need this function to convert the Channel response form crypt.Response to viper.Response
 	go func(cr <-chan *crypt.Response, vr chan<- *viper.RemoteResponse, quitwc <-chan bool, quit chan<- bool) {
 		for {
@@ -89,6 +97,18 @@ func (rc remoteConfigProvider) WatchChannel(rp viper.RemoteProvider) (<-chan *vi
 	}(cryptoResponseCh, viperResponsCh, quitwc, quit)
 
 	return viperResponsCh, quitwc
+}
+
+func (rc remoteConfigProvider) getConfigManager(rp viper.RemoteProvider) (provider.ViperConfigManager, error) {
+	providerType := provider.Type(rp.Provider())
+
+	// Registry에서 먼저 조회
+	if provider.IsRegistered(providerType) {
+		return provider.GetManager(providerType)
+	}
+
+	// Registry에 없으면 기존 crypt provider 사용 (etcd, consul 등)
+	return getConfigManager(rp)
 }
 
 func getConfigManager(rp viper.RemoteProvider) (crypt.ConfigManager, error) {
@@ -133,4 +153,26 @@ func getConfigManager(rp viper.RemoteProvider) (crypt.ConfigManager, error) {
 		return nil, err
 	}
 	return cm, nil
+}
+
+func contains(slice []string, str string) bool {
+	for _, v := range slice {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+// RegisterGithubProvider는 GitHub provider를 등록하는 편의 함수
+func RegisterGithubProvider(options *github.Option) error {
+	factory := func(opts provider.Options) (provider.ViperConfigManager, error) {
+		githubOpts, ok := opts.(*github.Option)
+		if !ok {
+			return nil, fmt.Errorf("invalid options type for github provider")
+		}
+		return github.NewGithubConfigManager(githubOpts)
+	}
+
+	return RegisterProvider(provider.GitHub, options, factory)
 }
